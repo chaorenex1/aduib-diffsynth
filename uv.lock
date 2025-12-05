@@ -50,12 +50,7 @@ dependencies = [
     { name = "uvicorn" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "alembic" },
-    { name = "pytest" },
-    { name = "ruff" },
-]
+[package.optional-dependencies]
 diffsynth = [
     { name = "diffsynth-engine" },
 ]
@@ -66,13 +61,23 @@ pdf-parser = [
     { name = "mineru", extra = ["core"] },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "alembic" },
+    { name = "pytest" },
+    { name = "ruff" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "aduib-rpc", specifier = ">=1.0.4" },
     { name = "bcrypt", specifier = ">=4.3.0" },
+    { name = "diffsynth-engine", marker = "extra == 'diffsynth'" },
     { name = "fastapi", specifier = ">=0.116.1" },
+    { name = "mineru", extras = ["core"], marker = "extra == 'pdf-parser'" },
     { name = "nacos-mcp-wrapper-python" },
     { name = "nacos-sdk-python", specifier = ">=2.0.1" },
+    { name = "paddleocr", marker = "extra == 'ocr'" },
     { name = "psycopg2-binary", specifier = ">=2.9.10" },
     { name = "pydantic", specifier = ">=2.11.3" },
     { name = "pydantic-settings", specifier = ">=2.9.1" },
@@ -82,6 +87,7 @@ requires-dist = [
     { name = "sqlalchemy", specifier = "==2.0.39" },
     { name = "uvicorn", specifier = ">=0.34.2" },
 ]
+provides-extras = ["diffsynth", "pdf-parser", "ocr"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -89,9 +95,6 @@ dev = [
     { name = "pytest", specifier = "==8.4.1" },
     { name = "ruff", specifier = "==0.8.5" },
 ]
-diffsynth = [{ name = "diffsynth-engine" }]
-ocr = [{ name = "paddleocr" }]
-pdf-parser = [{ name = "mineru", extras = ["core"] }]
 
 [[package]]
 name = "aduib-rpc"
