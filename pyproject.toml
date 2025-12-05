@@ -1,6 +1,6 @@
 [project]
 name = "aduib-diffsynth"
-version = "0.1.0"
+version = "1.0.0"
 description = "Aduib DiffSynth Service"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
@@ -28,9 +28,13 @@ packages = []
 
 [tool.uv]
 [dependency-groups]
+diffsynth=["diffsynth"]
+pdf-parser=["mineru[core]"]
+ocr=["paddleocr"]
 dev= [
     "alembic==1.16.4",
-    "pytest==8.4.1"
+    "pytest==8.4.1",
+    "ruff"
 ]
 
 [[tool.uv.index]]
