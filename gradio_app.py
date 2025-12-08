@@ -1,12 +1,17 @@
 """Minimal Gradio UI to demo DiffSynth functionality."""
 from __future__ import annotations
+
+import shutil
+
 import gradio as gr
 from html import escape
+
+from boto3.s3.inject import download_file
 
 from diffsynth.mineru.mineru import parse_pdf
 
 
-def process_files(files, lang, method):
+def process_pdf_files(files, lang, method):
     import tempfile
     import os
 
@@ -54,7 +59,12 @@ def process_files(files, lang, method):
         if result_files
         else "Processing complete but no output files were generated."
     )
-    yield build_progress_html(total_files, total_files, "All tasks complete.", result_text)
+    # 打包为 zip，供下载
+    archive_base = os.path.join(output_dir, "pdf_parse_results")
+    zip_path = shutil.make_archive(archive_base, "zip", root_dir=output_dir)
+
+    # 返回最终的 HTML 和 zip 文件路径（gr.File 会作为可下载文件显示）
+    yield (build_progress_html(total_files, total_files, "All tasks complete.", result_text), zip_path)
 
 
 def build_interface() -> gr.Blocks:
@@ -82,10 +92,12 @@ def build_interface() -> gr.Blocks:
                 with gr.Column(scale=1):
                     # 4. 显示结果
                     output_box = gr.HTML(label="Output", value="<div>等待上传文件...</div>")
+                    # 5. 下载 ZIP 文件
+                    download_file = gr.File(label="Download Results (ZIP)")
             submit_button.click(
-                fn=process_files,
+                fn=process_pdf_files,
                 inputs=[files, lang, method],
-                outputs=output_box,
+                outputs=[output_box, download_file],
             )
     return gradio_app
 
