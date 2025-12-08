@@ -6,8 +6,6 @@ import shutil
 import gradio as gr
 from html import escape
 
-from boto3.s3.inject import download_file
-
 from diffsynth.mineru.mineru import parse_pdf
 
 
