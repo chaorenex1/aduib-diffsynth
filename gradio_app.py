@@ -16,13 +16,13 @@ def process_pdf_files(files, lang, method):
     def build_progress_html(current: int, total: int, status: str, body: str | None = None) -> str:
         total = max(total, 1)
         body_section = f"<pre>{escape(body)}</pre>" if body else ""
-        return (
+        return ((
             "<div style='display:flex;flex-direction:column;gap:0.5rem;'>"
             f"<progress value='{current}' max='{total}' style='width:100%;'></progress>"
             f"<div>{escape(status)}</div>"
             f"{body_section}"
             "</div>"
-        )
+        ),None)
 
     def resolve_path(file_obj):
         if isinstance(file_obj, dict):
@@ -42,14 +42,14 @@ def process_pdf_files(files, lang, method):
         if not file_path:
             continue
         file_name = os.path.basename(file_path)
-        yield build_progress_html(idx - 1, total_files, f"Processing {file_name} ({idx}/{total_files})")
+        yield (build_progress_html(idx - 1, total_files, f"Processing {file_name} ({idx}/{total_files})"),None)
         parse_pdf(
             input_path=file_path,
             output_dir=output_dir,
             method=method,
             lang=lang,
         )
-        yield build_progress_html(idx, total_files, f"Finished {file_name} ({idx}/{total_files})")
+        yield (build_progress_html(idx, total_files, f"Finished {file_name} ({idx}/{total_files})"),None)
 
     result_files = os.listdir(output_dir)
     result_text = (
@@ -58,8 +58,9 @@ def process_pdf_files(files, lang, method):
         else "Processing complete but no output files were generated."
     )
     # 打包为 zip，供下载
-    archive_base = os.path.join(output_dir, "pdf_parse_results")
+    archive_base = os.path.join(os.path.dirname(output_dir), "pdf_parse_results")
     zip_path = shutil.make_archive(archive_base, "zip", root_dir=output_dir)
+    shutil.rmtree(output_dir)
 
     # 返回最终的 HTML 和 zip 文件路径（gr.File 会作为可下载文件显示）
     yield (build_progress_html(total_files, total_files, "All tasks complete.", result_text), zip_path)

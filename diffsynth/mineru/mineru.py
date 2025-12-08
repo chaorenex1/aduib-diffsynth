@@ -1,6 +1,7 @@
 import logging,os
 from pathlib import Path
 
+import torch
 from mineru.cli.common import read_fn, do_parse, pdf_suffixes, image_suffixes
 from mineru.utils.config_reader import get_device
 
@@ -59,3 +60,5 @@ def parse_pdf(input_path, output_dir, method,lang):
         parse_doc(doc_path_list)
     else:
         parse_doc([Path(input_path)])
+
+    torch.cuda.empty_cache()
