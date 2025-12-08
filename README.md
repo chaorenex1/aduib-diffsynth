@@ -23,3 +23,14 @@ Aduib DiffSynth Service
     alembic -c ./alembic/alembic.ini revision --autogenerate -m "init table"
     alembic -c ./alembic/alembic.ini upgrade head
    ```
+
+## Gradio Demo
+
+1. 安装依赖
+   ```bash
+   uv sync
+   ```
+2. 启动 Gradio
+   ```bash
+   uv run python gradio_app.py
+   ```
