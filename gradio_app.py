@@ -3,7 +3,7 @@
 import gradio as gr
 
 from app_factory import create_app
-from diffsynth.mineru import process_pdf_files, upload_to_blog
+from diffsynth.diffsynth import process_pdf_files, upload_to_blog, create_blog
 
 app=create_app()
 mineru_working_dir = app.app_home + "/mineru"
@@ -47,6 +47,17 @@ def build_interface() -> gr.Blocks:
                 fn=process_pdf_files,
                 inputs=[files, lang, method],
                 outputs=[output_box, download_file],
+            )
+        with gr.Tab("Aduib Blog RAG"):
+            with gr.Column(scale=1):
+                # 1. 选择 Markdown 文件
+                md_files = gr.Files(label="Upload Markdown File", file_types=[".md"])
+                upload_md_button = gr.Button("Upload Markdown to Blog")
+                md_output_box = gr.HTML(label="Output", value="<div>等待上传文件...</div>")
+            upload_md_button.click(
+                fn=create_blog,
+                inputs=[md_files],
+                outputs=[md_output_box],
             )
     return gradio_app
 
