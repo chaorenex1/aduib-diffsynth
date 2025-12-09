@@ -10,6 +10,8 @@ authors = [
     ]
 dependencies = [
     "bcrypt>=4.3.0",
+    "opendal>=0.45.16",
+    "boto3>=1.37.11",
     "fastapi>=0.116.1",
     "nacos-sdk-python>=2.0.1",
     "aduib_rpc>=1.0.4",

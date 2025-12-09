@@ -1,69 +1,12 @@
 """Minimal Gradio UI to demo DiffSynth functionality."""
-from __future__ import annotations
-
-import shutil
 
 import gradio as gr
-from html import escape
 
-from diffsynth.mineru.mineru import parse_pdf
+from app_factory import create_app
+from diffsynth.mineru import process_pdf_files, upload_to_blog
 
-
-def process_pdf_files(files, lang, method):
-    import tempfile
-    import os
-
-    def build_progress_html(current: int, total: int, status: str, body: str | None = None) -> str:
-        total = max(total, 1)
-        body_section = f"<pre>{escape(body)}</pre>" if body else ""
-        return ((
-            "<div style='display:flex;flex-direction:column;gap:0.5rem;'>"
-            f"<progress value='{current}' max='{total}' style='width:100%;'></progress>"
-            f"<div>{escape(status)}</div>"
-            f"{body_section}"
-            "</div>"
-        ),None)
-
-    def resolve_path(file_obj):
-        if isinstance(file_obj, dict):
-            return file_obj.get("name") or file_obj.get("path")
-        return getattr(file_obj, "name", file_obj)
-
-    if not files:
-        yield build_progress_html(0, 1, "No files uploaded.")
-        return
-
-    output_dir = tempfile.mkdtemp()
-    total_files = len(files)
-    yield build_progress_html(0, total_files, "Starting PDF parsing...")
-
-    for idx, file_obj in enumerate(files, start=1):
-        file_path = resolve_path(file_obj)
-        if not file_path:
-            continue
-        file_name = os.path.basename(file_path)
-        yield (build_progress_html(idx - 1, total_files, f"Processing {file_name} ({idx}/{total_files})"),None)
-        parse_pdf(
-            input_path=file_path,
-            output_dir=output_dir,
-            method=method,
-            lang=lang,
-        )
-        yield (build_progress_html(idx, total_files, f"Finished {file_name} ({idx}/{total_files})"),None)
-
-    result_files = os.listdir(output_dir)
-    result_text = (
-        "Processed files:\n" + "\n".join(result_files)
-        if result_files
-        else "Processing complete but no output files were generated."
-    )
-    # 打包为 zip，供下载
-    archive_base = os.path.join(os.path.dirname(output_dir), "pdf_parse_results")
-    zip_path = shutil.make_archive(archive_base, "zip", root_dir=output_dir)
-    shutil.rmtree(output_dir)
-
-    # 返回最终的 HTML 和 zip 文件路径（gr.File 会作为可下载文件显示）
-    yield (build_progress_html(total_files, total_files, "All tasks complete.", result_text), zip_path)
+app=create_app()
+mineru_working_dir = app.app_home + "/mineru"
 
 
 def build_interface() -> gr.Blocks:
@@ -93,6 +36,13 @@ def build_interface() -> gr.Blocks:
                     output_box = gr.HTML(label="Output", value="<div>等待上传文件...</div>")
                     # 5. 下载 ZIP 文件
                     download_file = gr.File(label="Download Results (ZIP)")
+                    # 6. 上传blog
+                    upload_file_button = gr.Button("Upload to Blog")
+                    upload_file_button.click(
+                        fn=upload_to_blog,
+                        inputs=[download_file],
+                        outputs=[output_box]
+                    )
             submit_button.click(
                 fn=process_pdf_files,
                 inputs=[files, lang, method],
@@ -103,7 +53,7 @@ def build_interface() -> gr.Blocks:
 
 def main():
     gradio_app = build_interface()
-    gradio_app.launch(server_name="0.0.0.0", server_port=7860, show_error=True,mcp_server=True)
+    gradio_app.launch(server_name="0.0.0.0", server_port=7860, show_error=True,mcp_server=True,allowed_paths=[app.app_home])
 
 
 if __name__ == "__main__":

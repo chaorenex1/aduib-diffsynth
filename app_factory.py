@@ -1,6 +1,7 @@
 import contextlib
 import logging
 import os
+import pathlib
 import time
 from contextvars import ContextVar
 from typing import AsyncIterator
@@ -10,6 +11,7 @@ from fastapi.routing import APIRoute
 from aduib_app import AduibAIApp
 from component.cache.redis_cache import init_cache
 from component.log.app_logging import init_logging
+from component.storage.base_storage import init_storage
 from configs import config
 from controllers.route import api_router
 from libs.api_key_auth import ApiKeyAuthorizationServerProvider
@@ -41,7 +43,7 @@ def create_app_with_configs()->AduibAIApp:
     if config.APP_HOME:
         app.app_home = config.APP_HOME
     else:
-        app.app_home = os.getcwd()
+        app.app_home = os.getenv("user.home", str(pathlib.Path.home())) + f"/.{config.APP_NAME.lower()}"
     app.include_router(api_router)
     if config.AUTH_ENABLED:
         app.add_middleware(ApiKeyContextMiddleware)
@@ -71,6 +73,7 @@ def init_apps(app: AduibAIApp):
     """
     log.info("Initializing middlewares")
     init_cache(app)
+    init_storage(app)
     log.info("middlewares initialized successfully")
 
 def init_fast_mcp(app: AduibAIApp):

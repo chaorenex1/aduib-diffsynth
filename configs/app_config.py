@@ -10,6 +10,8 @@ from .deploy import DeploymentConfig, AuthConfig, MCPConfig
 from .logging import LoggingConfig
 from .remote import RemoteSettingsSource, RemoteSettingsSourceName, RemoteSettingsSourceConfig, DiscoveryConfig
 from .remote.base import NacosSettingsSource
+from .storage import StorageConfig
+from .storage.s3_storage_config import S3StorageConfig
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +60,8 @@ class AduibAiConfig(
     LoggingConfig,
     DBConfig,
     RedisConfig,
+    StorageConfig,
+    S3StorageConfig,
     RemoteSettingsSourceConfig,
     DiscoveryConfig
 ):
