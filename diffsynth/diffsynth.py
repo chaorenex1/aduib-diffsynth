@@ -106,18 +106,14 @@ def create_blog(files) -> str:
     for idx, file_obj in enumerate(files, start=1):
         file_path = resolve_path(file_obj)
         file_name = os.path.basename(file_path)
-        new_file = Path(file_path).parent / f"{file_name}_uploaded.md"
-        from component.storage.base_storage import storage_manager
-        result = process_markdown_file(input_file =file_path, output_file=str(new_file), storage_instance=storage_manager.storage_instance, storage_prefix="blog_static")
-        if result:
-            with open(new_file, "rb") as f:
-                md_content = f.read()
-            # 创建RAG
-            create_paragraph_rag(
-                file_content=md_content,
-                file_name=file_name,
-            )
-        logger.debug(f"Markdown file processed result: {result}")
+        with open(file_path, "rb") as f:
+            md_content = f.read()
+        # 创建RAG
+        create_paragraph_rag(
+            file_content=md_content,
+            file_name=file_name,
+        )
+        logger.debug(f"Markdown file '{file_name}' uploaded to blog.")
         return f"<div>Markdown file '{file_name}' uploaded successfully.</div>"
 
     return "<div>No valid markdown file found to upload.</div>"
