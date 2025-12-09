@@ -95,17 +95,34 @@ def upload_to_blog(zip_file):
                 file_name=new_md_file_name,
             )
             logger.debug(f"Markdown file processed result: {result}")
-            return f"<div>Markdown file '{md_file.name}' uploaded successfully.</div>"
+    return f"<div>Markdown file '{len(md_files)}' uploaded successfully.</div>"
 
-    return "<div>No markdown file found to upload.</div>"
+def create_blog(files):
+    def build_progress_html(current: int, total: int, status: str, body: str | None = None) -> str:
+        total = max(total, 1)
+        body_section = f"<pre>{escape(body)}</pre>" if body else ""
+        return (
+            "<div style='display:flex;flex-direction:column;gap:0.5rem;'>"
+            f"<progress value='{current}' max='{total}' style='width:100%;'></progress>"
+            f"<div>{escape(status)}</div>"
+            f"{body_section}"
+            "</div>"
+        )
 
-def create_blog(files) -> str:
     if not files:
-        return "<div>No markdown file uploaded.</div>"
+        yield build_progress_html(0, 1, "No markdown file uploaded.")
+        return
 
+    total_files = len(files)
+    yield build_progress_html(0, total_files, "Starting to upload markdown files to blog...")
+
+    uploaded_files = []
     for idx, file_obj in enumerate(files, start=1):
         file_path = resolve_path(file_obj)
         file_name = os.path.basename(file_path)
+
+        yield build_progress_html(idx - 1, total_files, f"Processing {file_name} ({idx}/{total_files})")
+
         with open(file_path, "rb") as f:
             md_content = f.read()
         # 创建RAG
@@ -114,6 +131,9 @@ def create_blog(files) -> str:
             file_name=file_name,
         )
         logger.debug(f"Markdown file '{file_name}' uploaded to blog.")
-        return f"<div>Markdown file '{file_name}' uploaded successfully.</div>"
+        uploaded_files.append(file_name)
 
-    return "<div>No valid markdown file found to upload.</div>"
+        yield build_progress_html(idx, total_files, f"Finished {file_name} ({idx}/{total_files})")
+
+    result_text = "Uploaded files:\n" + "\n".join(uploaded_files)
+    yield build_progress_html(total_files, total_files, "All markdown files uploaded successfully.", result_text)
