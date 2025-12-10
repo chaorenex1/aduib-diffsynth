@@ -3,6 +3,7 @@ Text-to-Image generation using DiffSynth Engine
 """
 import logging
 import os
+import traceback
 from pathlib import Path
 from typing import Optional, Literal
 
@@ -22,6 +23,18 @@ vram_config = {
     # "computation_device": "cuda",
 }
 
+import torch
+
+def get_gpu_devices():
+    if not torch.cuda.is_available():
+        return "cpu"
+
+    count = torch.cuda.device_count()
+    devices =["cuda:"+str(i) for i in range(count)]
+    logger.debug(f"检测到可用GPU设备: {devices}")
+    return "cuda"
+
+
 
 class TextToImageGenerator:
     """文生图生成器，使用 DiffSynth Engine"""
@@ -29,7 +42,7 @@ class TextToImageGenerator:
     def __init__(
         self,
         model_path: Optional[str] = None,
-        device: str = "cuda" if torch.cuda.is_available() else "cpu",
+        device: str = "cpu",
     ):
         """
         初始化文生图生成器
@@ -45,7 +58,7 @@ class TextToImageGenerator:
         self.lora_loaded=False
         if not os.path.exists(model_path):
             os.makedirs(model_path,exist_ok=True)
-        logger.info(f"初始化 TextToImageGenerator，设备: {device}")
+        logger.info(f"初始化 TextToImageGenerator，设备: {get_gpu_devices()}")
         
     def load_model(
         self,
@@ -93,9 +106,7 @@ class TextToImageGenerator:
                     ],
                     tokenizer_config=ModelConfig(model_id="MusePublic/Qwen-image", origin_file_pattern="tokenizer/",skip_download=True,local_model_path=self.model_path),
                 )
-                if lora_model:
-                    self.pipe.load_lora(self.pipe.dit, lora_config=ModelConfig(model_id=lora_model, origin_file_pattern="model.safetensors"))
-                    self.lora_loaded=True
+
             elif model_type == "Qwen Image FP8":
                 logger.info("加载 Qwen Image FP8 模型...")
                 from diffsynth.pipelines.qwen_image import QwenImagePipeline,ModelConfig
@@ -107,16 +118,14 @@ class TextToImageGenerator:
                     device=self.device,
                     model_configs=[
                         ModelConfig(model_id="MusePublic/Qwen-image-fp8",
-                                    origin_file_pattern="transformer/diffusion_pytorch_model*.safetensors",skip_download=True,local_model_path=self.model_path),
-                        ModelConfig(model_id="MusePublic/Qwen-image-fp8", origin_file_pattern="text_encoder/model*.safetensors",skip_download=True,local_model_path=self.model_path),
+                                    origin_file_pattern="transformer/diffusion_pytorch_model*.safetensors",skip_download=True,local_model_path=self.model_path,**vram_config if low_varam else {}),
+                        ModelConfig(model_id="MusePublic/Qwen-image-fp8", origin_file_pattern="text_encoder/model*.safetensors",skip_download=True,local_model_path=self.model_path,**vram_config if low_varam else {}),
                         ModelConfig(model_id="MusePublic/Qwen-image-fp8",
-                                    origin_file_pattern="vae/diffusion_pytorch_model.safetensors",skip_download=True,local_model_path=self.model_path),
+                                    origin_file_pattern="vae/diffusion_pytorch_model.safetensors",skip_download=True,local_model_path=self.model_path,**vram_config if low_varam else {}),
                     ],
-                    tokenizer_config=ModelConfig(model_id="MusePublic/Qwen-image-fp8", origin_file_pattern="tokenizer/",skip_download=True,local_model_path=self.model_path),
+                    tokenizer_config=ModelConfig(model_id="MusePublic/Qwen-image-fp8", origin_file_pattern="tokenizer/",skip_download=True,local_model_path=self.model_path,**vram_config if low_varam else {}),
                 )
-                if lora_model:
-                    self.pipe.load_lora(self.pipe.dit, lora_config=ModelConfig(model_id=lora_model, origin_file_pattern="model.safetensors"))
-                    self.lora_loaded=True
+
             elif model_type == "Qwen-Image":
                 logger.info("加载 Qwen-Image 模型...")
                 from diffsynth.pipelines.qwen_image import QwenImagePipeline,ModelConfig
@@ -134,9 +143,7 @@ class TextToImageGenerator:
                     ],
                     tokenizer_config=ModelConfig(model_id="Qwen/Qwen-Image", origin_file_pattern="tokenizer/"),
                 )
-                if lora_model:
-                    self.pipe.load_lora(self.pipe.dit, lora_config=ModelConfig(model_id=lora_model, origin_file_pattern="model.safetensors"))
-                    self.lora_loaded=True
+
             elif model_type == "Qwen-Image-Edit-2509":
                 logger.info("加载 Qwen-Image-Edit-2509 模型...")
                 from diffsynth.pipelines.qwen_image import QwenImagePipeline,ModelConfig
@@ -155,19 +162,40 @@ class TextToImageGenerator:
                     ],
                     processor_config=ModelConfig(model_id="Qwen/Qwen-Image-Edit", origin_file_pattern="processor/"),
                 )
-                if lora_model:
-                    lora_config = ModelConfig(model_id=lora_model, origin_file_pattern="model.safetensors",
-                                         skip_download=True, local_model_path=self.model_path)
-                    if not os.path.exists(os.path.join(self.model_path,lora_model,"model.safetensors")):
-                        snapshot_download(lora_model, local_dir=os.path.join(self.model_path,lora_model), allow_file_pattern="model.safetensors*")
-                    self.pipe.load_lora(self.pipe.dit, lora_config=lora_config)
-                    self.lora_loaded = True
-                if low_varam:
-                    self.pipe.enable_vram_management()
-            
+            elif model_type == "Z-Image-Turbo":
+                logger.info("加载 Z-Image-Turbo 模型...")
+                from diffsynth.pipelines.z_image import ZImagePipeline, ModelConfig
+                if not os.path.exists(os.path.join(self.model_path,"Tongyi-MAI/Z-Image-Turbo")):
+                    snapshot_download("Tongyi-MAI/Z-Image-Turbo", local_dir=self.model_path+"/Tongyi-MAI/Z-Image-Turbo", allow_file_pattern="*")
+                self.pipe = ZImagePipeline.from_pretrained(
+                    torch_dtype=torch.bfloat16,
+                    device=self.device,
+                    model_configs=[
+                        ModelConfig(model_id="Tongyi-MAI/Z-Image-Turbo",
+                                    origin_file_pattern="transformer/*.safetensors",skip_download=True,local_model_path=self.model_path,**vram_config if low_varam else {}),
+                        ModelConfig(model_id="Tongyi-MAI/Z-Image-Turbo",
+                                    origin_file_pattern="text_encoder/*.safetensors",skip_download=True,local_model_path=self.model_path,**vram_config if low_varam else {}),
+                        ModelConfig(model_id="Tongyi-MAI/Z-Image-Turbo",
+                                    origin_file_pattern="vae/diffusion_pytorch_model.safetensors",skip_download=True,local_model_path=self.model_path,**vram_config if low_varam else {}),
+                    ],
+                    tokenizer_config=ModelConfig(model_id="Tongyi-MAI/Z-Image-Turbo", origin_file_pattern="tokenizer/"),
+                )
             else:
                 raise ValueError(f"不支持的模型类型: {model_type}")
-                
+
+            if lora_model:
+                lora_config = ModelConfig(model_id=lora_model, origin_file_pattern="model.safetensors",
+                                     skip_download=True, local_model_path=self.model_path)
+                if not os.path.exists(os.path.join(self.model_path,lora_model,"model.safetensors")):
+                    snapshot_download(lora_model, local_dir=os.path.join(self.model_path,lora_model), allow_file_pattern="model.safetensors*")
+                self.pipe.load_lora(self.pipe.dit, lora_config=lora_config)
+                self.lora_loaded = True
+                logger.info(f"LoRA模型加载完成: {lora_model}")
+            if low_varam:
+                logger.info("启用显存管理模式...")
+                self.pipe.enable_vram_management()
+
+
             logger.info(f"模型加载完成: {model_type}")
             
         except ImportError as e:
@@ -175,6 +203,7 @@ class TextToImageGenerator:
             logger.error("请确保已安装 diffsynth-engine: pip install diffsynth-engine")
             raise
         except Exception as e:
+            traceback.print_exc()
             logger.error(f"加载模型失败: {e}")
             raise
     
@@ -214,7 +243,7 @@ class TextToImageGenerator:
             
             # 生成图像
             image = self.pipe(
-                prompt=prompt,
+                prompt=positive_magic+prompt,
                 negative_prompt=negative_prompt,
                 height=height,
                 width=width,
@@ -240,6 +269,7 @@ class TextToImageGenerator:
             
         except Exception as e:
             logger.error(f"生成图像失败: {e}")
+            traceback.print_exc()
             raise
     
     def batch_generate(
@@ -331,6 +361,7 @@ def generate_image(
     model_type: str = "MusePublic/Qwen-image",
     lora_model:str=None,
     offload_model:bool=False,
+    device: str = "cuda",
     height: int = 512,
     width: int = 512,
     num_inference_steps: int = 20,
@@ -345,6 +376,7 @@ def generate_image(
         prompt: 正向提示词
         negative_prompt: 负向提示词
         model_type: 模型类型
+        device: 运行设备 (cuda, cpu, mps)
         height: 图像高度
         width: 图像宽度
         num_inference_steps: 推理步数
@@ -357,6 +389,12 @@ def generate_image(
     """
     generator = get_generator()
     
+    # 更新设备设置
+    generator.device = get_gpu_devices()
+    # 如果有已加载的模型，需要卸载重新加载
+    if generator.pipe is not None:
+        generator.unload_model()
+
     # 如果需要切换模型类型，先卸载旧模型
     if generator.current_model_type is not None and generator.current_model_type != model_type:
         logger.info(f"切换模型: {generator.current_model_type} -> {model_type}")
@@ -380,26 +418,6 @@ def generate_image(
         seed=seed,
         output_path=output_path,
     )
-
-def unload_lora():
-    """卸载LoRA模型"""
-    generator = get_generator()
-    if generator.lora_loaded:
-        generator.unload_lora()
-        generator.lora_loaded = False
-
-def unload_model():
-    """卸载主模型"""
-    generator = get_generator()
-    generator.unload_model()
-
-def get_model_status():
-    """获取当前模型状态"""
-    generator = get_generator()
-    is_loaded = generator.pipe is not None
-    lora_loaded = generator.lora_loaded if is_loaded else False
-    return is_loaded, lora_loaded
-
 
 def edit_image(
     input_image_path: str,
@@ -438,6 +456,12 @@ def edit_image(
     from PIL import Image
 
     generator = get_generator()
+
+    # 更新设备设置
+    generator.device = get_gpu_devices()
+    # 如果有已加载的模型，需要卸载重新加载
+    if generator.pipe is not None:
+        generator.unload_model()
 
     # 如果需要切换模型类型，先卸载旧模型
     if generator.current_model_type is not None and generator.current_model_type != model_type:
@@ -491,5 +515,24 @@ def edit_image(
     except Exception as e:
         logger.error(f"编辑图像失败: {e}")
         raise
+
+def unload_lora():
+    """卸载LoRA模型"""
+    generator = get_generator()
+    if generator.lora_loaded:
+        generator.unload_lora()
+        generator.lora_loaded = False
+
+def unload_model():
+    """卸载主模型"""
+    generator = get_generator()
+    generator.unload_model()
+
+def get_model_status():
+    """获取当前模型状态"""
+    generator = get_generator()
+    is_loaded = generator.pipe is not None
+    lora_loaded = generator.lora_loaded if is_loaded else False
+    return is_loaded, lora_loaded
 
 
