@@ -1,4 +1,4 @@
-"""Minimal Gradio UI to demo DiffSynth functionality."""
+"""Minimal Gradio UI for DiffSynth Engine Playground"""
 
 import gradio as gr
 
@@ -107,8 +107,8 @@ def build_interface() -> gr.Blocks:
 
                     # 模型选择
                     model_type_dropdown = gr.Dropdown(
-                        choices=["Qwen-Image","Qwen-Image-Edit","MusePublic/Qwen-image","Qwen Image FP8"],
-                        value="MusePublic/Qwen-image",
+                        choices=["Qwen-Image","Qwen-Image-Edit","MusePublic/Qwen-image","Qwen Image FP8","Z-Image-Turbo"],
+                        value="Z-Image-Turbo",
                         label="模型类型",
                         info="选择不同的扩散模型",
                     )
@@ -345,7 +345,7 @@ def build_interface() -> gr.Blocks:
                         label="负向提示词 (Negative Prompt)",
                         placeholder="输入不想出现的元素...",
                         lines=4,
-                        value="模糊, 低分辨率, 低质量, 变形, 畸形, 错误的解剖学",
+                        value="网格化，规则的网格，模糊, 低分辨率, 低质量, 变形, 畸形, 错误的解剖学, 变形的手, 变形的身体, 变形的脸, 变形的头发, 变形的眼睛, 变形的嘴巴",
                     )
 
                     # 模型选择
