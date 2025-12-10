@@ -34,3 +34,7 @@ Aduib DiffSynth Service
    ```bash
    uv run python gradio_app.py
    ```
+
+## 文档 (Docs)
+
+- [docs](docs/README.md) — 文档
