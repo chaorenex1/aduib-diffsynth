@@ -37,4 +37,4 @@ Aduib DiffSynth Service
 
 ## 文档 (Docs)
 
-- [docs](docs/README.md) — 文档
+- [docs](https://chaorenex1.github.io/aduib-diffsynth/) — 文档
