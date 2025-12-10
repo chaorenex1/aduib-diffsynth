@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional, Literal
 
 import torch
+from modelscope import snapshot_download
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,8 @@ class TextToImageGenerator:
             elif model_type == "MusePublic/Qwen-image":
                 logger.info("加载 MusePublic/Qwen-image 模型...")
                 from diffsynth.pipelines.qwen_image import QwenImagePipeline,ModelConfig
+                if not os.path.exists(os.path.join(self.model_path,"MusePublic/Qwen-image")):
+                    snapshot_download("MusePublic/Qwen-image", local_dir=self.model_path+"/MusePublic/Qwen-image", allow_file_pattern="*")
                 self.pipe = QwenImagePipeline.from_pretrained(
                     torch_dtype=torch.bfloat16,
                     device=self.device,
@@ -93,9 +96,32 @@ class TextToImageGenerator:
                 if lora_model:
                     self.pipe.load_lora(self.pipe.dit, lora_config=ModelConfig(model_id=lora_model, origin_file_pattern="model.safetensors"))
                     self.lora_loaded=True
+            elif model_type == "Qwen Image FP8":
+                logger.info("加载 Qwen Image FP8 模型...")
+                from diffsynth.pipelines.qwen_image import QwenImagePipeline,ModelConfig
+                #判断模型是否下载
+                if not os.path.exists(os.path.join(self.model_path,"MusePublic/Qwen-image-fp8")):
+                    snapshot_download("MusePublic/Qwen-image-fp8", local_dir=self.model_path+"/MusePublic/Qwen-image-fp8", allow_file_pattern="*")
+                self.pipe = QwenImagePipeline.from_pretrained(
+                    torch_dtype=torch.float8_e4m3fn,
+                    device=self.device,
+                    model_configs=[
+                        ModelConfig(model_id="MusePublic/Qwen-image-fp8",
+                                    origin_file_pattern="transformer/diffusion_pytorch_model*.safetensors",skip_download=True,local_model_path=self.model_path),
+                        ModelConfig(model_id="MusePublic/Qwen-image-fp8", origin_file_pattern="text_encoder/model*.safetensors",skip_download=True,local_model_path=self.model_path),
+                        ModelConfig(model_id="MusePublic/Qwen-image-fp8",
+                                    origin_file_pattern="vae/diffusion_pytorch_model.safetensors",skip_download=True,local_model_path=self.model_path),
+                    ],
+                    tokenizer_config=ModelConfig(model_id="MusePublic/Qwen-image-fp8", origin_file_pattern="tokenizer/",skip_download=True,local_model_path=self.model_path),
+                )
+                if lora_model:
+                    self.pipe.load_lora(self.pipe.dit, lora_config=ModelConfig(model_id=lora_model, origin_file_pattern="model.safetensors"))
+                    self.lora_loaded=True
             elif model_type == "Qwen-Image":
                 logger.info("加载 Qwen-Image 模型...")
                 from diffsynth.pipelines.qwen_image import QwenImagePipeline,ModelConfig
+                if not os.path.exists(os.path.join(self.model_path,"Qwen/Qwen-Image")):
+                    snapshot_download("Qwen/Qwen-Image", local_dir=self.model_path+"/Qwen/Qwen-Image", allow_file_pattern="*")
                 self.pipe = QwenImagePipeline.from_pretrained(
                     torch_dtype=torch.bfloat16,
                     device=self.device,
@@ -114,6 +140,8 @@ class TextToImageGenerator:
             elif model_type == "Qwen-Image-Edit-2509":
                 logger.info("加载 Qwen-Image-Edit-2509 模型...")
                 from diffsynth.pipelines.qwen_image import QwenImagePipeline,ModelConfig
+                if not os.path.exists(os.path.join(self.model_path,"Qwen/Qwen-Image-Edit-2509")):
+                    snapshot_download("Qwen/Qwen-Image-Edit-2509", local_dir=self.model_path+"/Qwen/Qwen-Image-Edit-2509", allow_file_pattern="*")
                 self.pipe = QwenImagePipeline.from_pretrained(
                     torch_dtype=torch.bfloat16,
                     device=self.device,
@@ -128,8 +156,11 @@ class TextToImageGenerator:
                     processor_config=ModelConfig(model_id="Qwen/Qwen-Image-Edit", origin_file_pattern="processor/"),
                 )
                 if lora_model:
-                    self.pipe.load_lora(self.pipe.dit, lora_config=ModelConfig(model_id=lora_model,
-                                                                               origin_file_pattern="model.safetensors",skip_download=True,local_model_path=self.model_path))
+                    lora_config = ModelConfig(model_id=lora_model, origin_file_pattern="model.safetensors",
+                                         skip_download=True, local_model_path=self.model_path)
+                    if not os.path.exists(os.path.join(self.model_path,lora_model,"model.safetensors")):
+                        snapshot_download(lora_model, local_dir=os.path.join(self.model_path,lora_model), allow_file_pattern="model.safetensors*")
+                    self.pipe.load_lora(self.pipe.dit, lora_config=lora_config)
                     self.lora_loaded = True
                 if low_varam:
                     self.pipe.enable_vram_management()
@@ -368,3 +399,97 @@ def get_model_status():
     is_loaded = generator.pipe is not None
     lora_loaded = generator.lora_loaded if is_loaded else False
     return is_loaded, lora_loaded
+
+
+def edit_image(
+    input_image_path: str,
+    prompt: str,
+    negative_prompt: str = "",
+    model_type: str = "Qwen-Image-Edit-2509",
+    lora_model: str = None,
+    offload_model: bool = False,
+    height: int = 1024,
+    width: int = 1024,
+    num_inference_steps: int = 50,
+    guidance_scale: float = 4.5,
+    seed: Optional[int] = None,
+    output_path: Optional[str] = None,
+) -> str:
+    """
+    图片编辑函数
+
+    参数:
+        input_image_path: 输入图片路径
+        prompt: 编辑提示词
+        negative_prompt: 负向提示词
+        model_type: 模型类型
+        lora_model: LoRA模型
+        offload_model: 是否启用显存管理
+        height: 图像高度
+        width: 图像宽度
+        num_inference_steps: 推理步数
+        guidance_scale: 引导系数
+        seed: 随机种子
+        output_path: 输出路径
+
+    返回:
+        编辑后的图像路径
+    """
+    from PIL import Image
+
+    generator = get_generator()
+
+    # 如果需要切换模型类型，先卸载旧模型
+    if generator.current_model_type is not None and generator.current_model_type != model_type:
+        logger.info(f"切换模型: {generator.current_model_type} -> {model_type}")
+        generator.unload_model()
+
+    # 如果模型未加载，加载新模型
+    if generator.pipe is None:
+        generator.load_model(model_type, lora_model=lora_model, low_varam=offload_model)
+    # 如果模型已加载但需要添加/更换LoRA
+    elif lora_model and not generator.lora_loaded:
+        generator.load_model(model_type, lora_model=lora_model, low_varam=offload_model)
+
+    # 加载输入图像
+    input_image = Image.open(input_image_path).convert("RGB")
+
+    # 调整图像尺寸
+    if input_image.size != (width, height):
+        input_image = input_image.resize((width, height), Image.LANCZOS)
+
+    # 使用模型编辑图像
+    try:
+        logger.info(f"开始编辑图像，提示词: {prompt[:50]}...")
+
+        # 生成图像
+        edited_image = generator.pipe(
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            input_image=input_image,
+            height=height,
+            width=width,
+            num_inference_steps=num_inference_steps,
+            cfg_scale=guidance_scale,
+            seed=seed
+        )
+
+        # 保存图像
+        if output_path is None:
+            output_dir = Path("outputs/image_edit")
+            output_dir.mkdir(parents=True, exist_ok=True)
+            import uuid
+            output_path = str(output_dir / f"{uuid.uuid4()}.png")
+        else:
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+        edited_image.save(output_path)
+        logger.info(f"编辑后图像已保存至: {output_path}")
+
+        return output_path
+
+    except Exception as e:
+        logger.error(f"编辑图像失败: {e}")
+        raise
+
+
