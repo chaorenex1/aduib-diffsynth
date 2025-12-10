@@ -27,7 +27,7 @@ dependencies = [
     "pytz",
 ]
 [project.optional-dependencies]
-diffsynth=["diffsynth-engine"]
+diffsynth=["diffsynth"]
 pdf_parser=["mineru[core]"]
 ocr=["paddleocr"]
 cuda=["torch==2.7.1","torchvision==0.22.1"]

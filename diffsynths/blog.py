@@ -5,8 +5,8 @@ import uuid
 from html import escape
 from pathlib import Path
 
-from diffsynth.aduib_ai import create_paragraph_rag
-from diffsynth.mineru import parse_pdf
+from diffsynths.aduib_ai import create_paragraph_rag
+from diffsynths.mineru import parse_pdf
 from utils.markdown import process_markdown_file
 
 logger= logging.getLogger(__name__)
