@@ -19,7 +19,7 @@ jobs:
         with:
           use_foundry: "true"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          track_progress: true # ✨ Enables tracking comments
+#          track_progress: true # ✨ Enables tracking comments
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
