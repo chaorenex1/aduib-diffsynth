@@ -74,6 +74,9 @@ def init_apps(app: AduibAIApp):
     log.info("Initializing middlewares")
     init_cache(app)
     init_storage(app)
+    from aduib_rpc.server.rpc_execution.service_call import load_service_plugins
+    load_service_plugins('rpc.service')
+    load_service_plugins('rpc.client')
     log.info("middlewares initialized successfully")
 
 def init_fast_mcp(app: AduibAIApp):

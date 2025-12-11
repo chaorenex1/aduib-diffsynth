@@ -14,7 +14,7 @@ dependencies = [
     "boto3>=1.37.11",
     "fastapi>=0.116.1",
     "nacos-sdk-python>=2.0.1",
-    "aduib_rpc>=1.0.4",
+    "aduib_rpc>=1.0.10",
     "nacos-mcp-wrapper-python",
     "psycopg2-binary>=2.9.10",
     "pydantic>=2.11.3,<=2.12.4",
@@ -31,6 +31,7 @@ diffsynth=["diffsynth"]
 pdf_parser=["mineru[core]"]
 ocr=["paddleocr"]
 cuda=["torch==2.7.1","torchvision==0.22.1"]
+tts=["cosyvoice-client"]
 
 [dependency-groups]
 dev= [

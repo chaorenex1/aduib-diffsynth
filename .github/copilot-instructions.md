@@ -15,14 +15,10 @@
 
 Install uv: `pip install uv` (or brew/choco)
 
-### ⚠️ CRITICAL: Aliyun Mirror Connectivity Issue
-
-`pyproject.toml` defaults to `http://mirrors.aliyun.com/pypi/simple/` which often fails with DNS errors outside China.
-
 **ALWAYS use this command for dependencies**:
 ```bash
 rm -f uv.lock  # Remove lock file first
-uv sync --dev --index-url https://pypi.org/simple/
+uv sync --dev
 source .venv/bin/activate
 ```
 
