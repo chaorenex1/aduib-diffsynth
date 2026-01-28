@@ -10,17 +10,19 @@ from typing import Optional, Literal
 import torch
 from modelscope import snapshot_download
 
+from utils import uuid
+
 logger = logging.getLogger(__name__)
 
 vram_config = {
     "offload_dtype": torch.float8_e4m3fn,
     "offload_device": "cpu",
-    # "onload_dtype": torch.float8_e4m3fn,
-    # "onload_device": "cpu",
-    # "preparing_dtype": torch.float8_e4m3fn,
-    # "preparing_device": "cuda",
-    # "computation_dtype": torch.bfloat16,
-    # "computation_device": "cuda",
+    "onload_dtype": torch.float8_e4m3fn,
+    "onload_device": "cpu",
+    "preparing_dtype": torch.float8_e4m3fn,
+    "preparing_device": "cuda",
+    "computation_dtype": torch.bfloat16,
+    "computation_device": "cuda",
 }
 
 import torch
@@ -191,9 +193,9 @@ class TextToImageGenerator:
                 self.pipe.load_lora(self.pipe.dit, lora_config=lora_config)
                 self.lora_loaded = True
                 logger.info(f"LoRA模型加载完成: {lora_model}")
-            if low_varam:
-                logger.info("启用显存管理模式...")
-                self.pipe.enable_vram_management()
+            # if low_varam:
+            #     logger.info("启用显存管理模式...")
+            #     self.pipe.enable_vram_management()
 
 
             logger.info(f"模型加载完成: {model_type}")
@@ -255,16 +257,16 @@ class TextToImageGenerator:
 
             # 保存图像
             if output_path is None:
-                output_dir = Path("outputs/text_to_image")
+                raise ValueError("output_path不能为空，请指定输出路径")
+
+            if os.path.isdir(output_path):
+                output_dir = Path(output_path).joinpath(Path("outputs/text_to_image"))
                 output_dir.mkdir(parents=True, exist_ok=True)
                 import uuid
-                output_path = str(output_dir / f"{uuid.uuid4()}.png")
-            else:
-                os.makedirs(os.path.dirname(output_path), exist_ok=True)
-            
+                output_path = str(output_dir / f"{uuid.uuid4()}.jpg")
             image.save(output_path)
             logger.info(f"图像已保存至: {output_path}")
-            
+
             return output_path
             
         except Exception as e:
@@ -306,7 +308,8 @@ class TextToImageGenerator:
         output_paths = []
         for i, prompt in enumerate(prompts):
             logger.info(f"批量生成 {i+1}/{len(prompts)}")
-            output_path = os.path.join(output_dir, f"image_{i:04d}.png")
+            import uuid
+            output_path = os.path.join(output_dir, f"image_{uuid.uuid4()}_{i:04d}.jpg")
             
             # 如果指定了种子，为每张图像设置不同的种子
             current_seed = seed + i if seed is not None else None
@@ -503,7 +506,7 @@ def edit_image(
             output_dir = Path("outputs/image_edit")
             output_dir.mkdir(parents=True, exist_ok=True)
             import uuid
-            output_path = str(output_dir / f"{uuid.uuid4()}.png")
+            output_path = str(output_dir / f"{uuid.uuid4()}.jpg")
         else:
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
