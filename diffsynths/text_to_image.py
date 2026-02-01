@@ -5,25 +5,14 @@ import logging
 import os
 import traceback
 from pathlib import Path
-from typing import Optional, Literal
+from typing import Optional
 
-import torch
+from PIL import Image
 from modelscope import snapshot_download
 
-from utils import uuid
+from configs.models import get_model_config, PipelineType, PipelineClass, ModelConfig
 
 logger = logging.getLogger(__name__)
-
-vram_config = {
-    "offload_dtype": torch.float8_e4m3fn,
-    "offload_device": "cpu",
-    "onload_dtype": torch.float8_e4m3fn,
-    "onload_device": "cpu",
-    "preparing_dtype": torch.float8_e4m3fn,
-    "preparing_device": "cuda",
-    "computation_dtype": torch.bfloat16,
-    "computation_device": "cuda",
-}
 
 import torch
 
@@ -53,7 +42,7 @@ class TextToImageGenerator:
             model_path: 模型路径，如果为None则使用默认模型
             device: 运行设备，cuda或cpu
         """
-        self.current_model_type = None
+        self.current_model_id = None
         self.device = device
         self.model_path = model_path
         self.pipe = None
@@ -64,7 +53,8 @@ class TextToImageGenerator:
         
     def load_model(
         self,
-        model_type: str = "MusePublic/Qwen-image",
+        pipeline_type: str = PipelineType.TEXT_TO_IMAGE.value,
+        model_id: str = "MusePublic/Qwen-image",
         lora_model:str=None,
         low_varam: bool = False,
     ):
@@ -72,133 +62,33 @@ class TextToImageGenerator:
         加载模型
         
         参数:
-            model_type: 模型类型，支持 sd, sdxl, sd3, flux, hunyuan
+            model_id: 模型类型，支持 sd, sdxl, sd3, flux, hunyuan
         """
         try:
-            self.current_model_type = model_type
-            # 根据模型类型选择对应的 Pipeline
-            if model_type == "sd":
-                logger.info("加载 Stable Diffusion 模型...")
+            logger.info(f"load model: {model_id}")
+            model_config = get_model_config(pipeline_type, model_id)
+            pipeline_class = model_config.pipeline
+            match pipeline_class:
+                case PipelineClass.QWEN_IMAGE.value:
+                     self.pipe=self._load_qwen_image(pipeline_type,model_id, low_varam)
+                case PipelineClass.Z_IMAGE.value:
+                    self.pipe=self._load_z_image(pipeline_type,model_id, low_varam)
+                case PipelineClass.FLUX2_IMAGE.value:
+                    self.pipe=self._load_flux2_image(pipeline_type,model_id, low_varam)
+                case _:
+                    raise ValueError(f"Unsupported model type: {model_id}")
 
-            elif model_type == "sdxl":
-                logger.info("加载 Stable Diffusion XL 模型...")
-                
-            elif model_type == "sd3":
-                logger.info("加载 Stable Diffusion 3 模型...")
-                
-            elif model_type == "flux":
-                logger.info("加载 Flux 模型...")
-                
-            elif model_type == "hunyuan":
-                logger.info("加载 HunyuanDiT 模型...")
-            elif model_type == "MusePublic/Qwen-image":
-                logger.info("加载 MusePublic/Qwen-image 模型...")
-                from diffsynth.pipelines.qwen_image import QwenImagePipeline,ModelConfig
-                if not os.path.exists(os.path.join(self.model_path,"MusePublic/Qwen-image")):
-                    snapshot_download("MusePublic/Qwen-image", local_dir=self.model_path+"/MusePublic/Qwen-image", allow_file_pattern="*")
-                self.pipe = QwenImagePipeline.from_pretrained(
-                    torch_dtype=torch.bfloat16,
-                    device=self.device,
-                    model_configs=[
-                        ModelConfig(model_id="MusePublic/Qwen-image",
-                                    origin_file_pattern="transformer/diffusion_pytorch_model*.safetensors",skip_download=True,local_model_path=self.model_path),
-                        ModelConfig(model_id="MusePublic/Qwen-image", origin_file_pattern="text_encoder/model*.safetensors",skip_download=True,local_model_path=self.model_path),
-                        ModelConfig(model_id="MusePublic/Qwen-image",
-                                    origin_file_pattern="vae/diffusion_pytorch_model.safetensors",skip_download=True,local_model_path=self.model_path),
-                    ],
-                    tokenizer_config=ModelConfig(model_id="MusePublic/Qwen-image", origin_file_pattern="tokenizer/",skip_download=True,local_model_path=self.model_path),
-                )
-
-            elif model_type == "Qwen Image FP8":
-                logger.info("加载 Qwen Image FP8 模型...")
-                from diffsynth.pipelines.qwen_image import QwenImagePipeline,ModelConfig
-                #判断模型是否下载
-                if not os.path.exists(os.path.join(self.model_path,"MusePublic/Qwen-image-fp8")):
-                    snapshot_download("MusePublic/Qwen-image-fp8", local_dir=self.model_path+"/MusePublic/Qwen-image-fp8", allow_file_pattern="*")
-                self.pipe = QwenImagePipeline.from_pretrained(
-                    torch_dtype=torch.float8_e4m3fn,
-                    device=self.device,
-                    model_configs=[
-                        ModelConfig(model_id="MusePublic/Qwen-image-fp8",
-                                    origin_file_pattern="transformer/diffusion_pytorch_model*.safetensors",skip_download=True,local_model_path=self.model_path,**vram_config if low_varam else {}),
-                        ModelConfig(model_id="MusePublic/Qwen-image-fp8", origin_file_pattern="text_encoder/model*.safetensors",skip_download=True,local_model_path=self.model_path,**vram_config if low_varam else {}),
-                        ModelConfig(model_id="MusePublic/Qwen-image-fp8",
-                                    origin_file_pattern="vae/diffusion_pytorch_model.safetensors",skip_download=True,local_model_path=self.model_path,**vram_config if low_varam else {}),
-                    ],
-                    tokenizer_config=ModelConfig(model_id="MusePublic/Qwen-image-fp8", origin_file_pattern="tokenizer/",skip_download=True,local_model_path=self.model_path,**vram_config if low_varam else {}),
-                )
-
-            elif model_type == "Qwen-Image":
-                logger.info("加载 Qwen-Image 模型...")
-                from diffsynth.pipelines.qwen_image import QwenImagePipeline,ModelConfig
-                if not os.path.exists(os.path.join(self.model_path,"Qwen/Qwen-Image")):
-                    snapshot_download("Qwen/Qwen-Image", local_dir=self.model_path+"/Qwen/Qwen-Image", allow_file_pattern="*")
-                self.pipe = QwenImagePipeline.from_pretrained(
-                    torch_dtype=torch.bfloat16,
-                    device=self.device,
-                    model_configs=[
-                        ModelConfig(model_id="Qwen/Qwen-Image",
-                                    origin_file_pattern="transformer/diffusion_pytorch_model*.safetensors",skip_download=True,local_model_path=self.model_path),
-                        ModelConfig(model_id="Qwen/Qwen-Image", origin_file_pattern="text_encoder/model*.safetensors",skip_download=True,local_model_path=self.model_path),
-                        ModelConfig(model_id="Qwen/Qwen-Image",
-                                    origin_file_pattern="vae/diffusion_pytorch_model.safetensors",skip_download=True,local_model_path=self.model_path),
-                    ],
-                    tokenizer_config=ModelConfig(model_id="Qwen/Qwen-Image", origin_file_pattern="tokenizer/"),
-                )
-
-            elif model_type == "Qwen-Image-Edit-2509":
-                logger.info("加载 Qwen-Image-Edit-2509 模型...")
-                from diffsynth.pipelines.qwen_image import QwenImagePipeline,ModelConfig
-                if not os.path.exists(os.path.join(self.model_path,"Qwen/Qwen-Image-Edit-2509")):
-                    snapshot_download("Qwen/Qwen-Image-Edit-2509", local_dir=self.model_path+"/Qwen/Qwen-Image-Edit-2509", allow_file_pattern="*")
-                self.pipe = QwenImagePipeline.from_pretrained(
-                    torch_dtype=torch.bfloat16,
-                    device=self.device,
-                    model_configs=[
-                        ModelConfig(model_id="Qwen/Qwen-Image-Edit-2509",
-                                    origin_file_pattern="transformer/diffusion_pytorch_model*.safetensors",skip_download=True,local_model_path=self.model_path),
-                        ModelConfig(model_id="Qwen/Qwen-Image",
-                                    origin_file_pattern="text_encoder/model*.safetensors",skip_download=True,local_model_path=self.model_path),
-                        ModelConfig(model_id="Qwen/Qwen-Image",
-                                    origin_file_pattern="vae/diffusion_pytorch_model.safetensors",skip_download=True,local_model_path=self.model_path),
-                    ],
-                    processor_config=ModelConfig(model_id="Qwen/Qwen-Image-Edit", origin_file_pattern="processor/"),
-                )
-            elif model_type == "Z-Image-Turbo":
-                logger.info("加载 Z-Image-Turbo 模型...")
-                from diffsynth.pipelines.z_image import ZImagePipeline, ModelConfig
-                if not os.path.exists(os.path.join(self.model_path,"Tongyi-MAI/Z-Image-Turbo")):
-                    snapshot_download("Tongyi-MAI/Z-Image-Turbo", local_dir=self.model_path+"/Tongyi-MAI/Z-Image-Turbo", allow_file_pattern="*")
-                self.pipe = ZImagePipeline.from_pretrained(
-                    torch_dtype=torch.bfloat16,
-                    device=self.device,
-                    model_configs=[
-                        ModelConfig(model_id="Tongyi-MAI/Z-Image-Turbo",
-                                    origin_file_pattern="transformer/*.safetensors",skip_download=True,local_model_path=self.model_path,**vram_config if low_varam else {}),
-                        ModelConfig(model_id="Tongyi-MAI/Z-Image-Turbo",
-                                    origin_file_pattern="text_encoder/*.safetensors",skip_download=True,local_model_path=self.model_path,**vram_config if low_varam else {}),
-                        ModelConfig(model_id="Tongyi-MAI/Z-Image-Turbo",
-                                    origin_file_pattern="vae/diffusion_pytorch_model.safetensors",skip_download=True,local_model_path=self.model_path,**vram_config if low_varam else {}),
-                    ],
-                    tokenizer_config=ModelConfig(model_id="Tongyi-MAI/Z-Image-Turbo", origin_file_pattern="tokenizer/"),
-                )
-            else:
-                raise ValueError(f"不支持的模型类型: {model_type}")
 
             if lora_model:
-                lora_config = ModelConfig(model_id=lora_model, origin_file_pattern="model.safetensors",
-                                     skip_download=True, local_model_path=self.model_path)
-                if not os.path.exists(os.path.join(self.model_path,lora_model,"model.safetensors")):
-                    snapshot_download(lora_model, local_dir=os.path.join(self.model_path,lora_model), allow_file_pattern="model.safetensors*")
-                self.pipe.load_lora(self.pipe.dit, lora_config=lora_config)
-                self.lora_loaded = True
+                self.load_lora_model( lora_model)
+                self.lora_loaded=True
                 logger.info(f"LoRA模型加载完成: {lora_model}")
-            # if low_varam:
-            #     logger.info("启用显存管理模式...")
-            #     self.pipe.enable_vram_management()
+        # if low_varam:
+        #     logger.info("启用显存管理模式...")
+        #     self.pipe.enable_vram_management()
 
 
-            logger.info(f"模型加载完成: {model_type}")
+            logger.info(f"模型加载完成: {model_id}")
             
         except ImportError as e:
             logger.error(f"导入 diffsynth 模块失败: {e}")
@@ -208,11 +98,225 @@ class TextToImageGenerator:
             traceback.print_exc()
             logger.error(f"加载模型失败: {e}")
             raise
+
+    def _load_qwen_image(self,
+                         pipeline_type: str,
+                         model_id: str,
+                         offload_model: bool):
+        """Load MusePublic/Qwen-image model."""
+        from diffsynth.pipelines.qwen_image import QwenImagePipeline, ModelConfig
+        config = get_model_config(pipeline_type, model_id)
+
+        self.download_models(config, model_id)
+
+        vram = {}
+        if offload_model:
+            vram ={
+    "offload_dtype": "disk",
+    "offload_device": "disk",
+    "onload_dtype": torch.float8_e4m3fn,
+    "onload_device": "cpu",
+    "preparing_dtype": torch.float8_e4m3fn,
+    "preparing_device": "cuda",
+    "computation_dtype": torch.bfloat16,
+    "computation_device": "cuda",
+}
+
+        return QwenImagePipeline.from_pretrained(
+            torch_dtype=config.d_type.get_torch_dtype(),
+            device=self.device,
+            model_configs=[
+                ModelConfig(
+                    model_id=model_id,
+                    origin_file_pattern="transformer/diffusion_pytorch_model*.safetensors",
+                    skip_download=True,
+                    local_model_path=self.model_path,
+                    **vram
+                ),
+                ModelConfig(
+                    model_id=config.text_encoder if config.text_encoder else model_id,
+                    origin_file_pattern="text_encoder/model*.safetensors",
+                    skip_download=True,
+                    local_model_path=self.model_path,
+                    **vram
+                ),
+                ModelConfig(
+                    model_id=config.vae_encoder if config.vae_encoder else model_id,
+                    origin_file_pattern="vae/diffusion_pytorch_model.safetensors",
+                    skip_download=True,
+                    local_model_path=self.model_path,
+                    **vram
+                ),
+            ],
+            tokenizer_config=ModelConfig(
+                model_id=config.tokenizer if config.tokenizer else model_id,
+                origin_file_pattern="tokenizer/",
+                skip_download=True,
+                local_model_path=self.model_path,
+            ) if pipeline_type == PipelineType.TEXT_TO_IMAGE.value else None,
+            processor_config=ModelConfig(
+                model_id=config.tokenizer if config.tokenizer else model_id,
+                origin_file_pattern="processor/",
+                skip_download=True,
+                local_model_path=self.model_path,
+            ) if pipeline_type == PipelineType.IMAGE_EDIT.value else None,
+        )
+
+    def _load_z_image(self,
+                            pipeline_type: str,
+                            model_id: str,
+                            offload_model: bool):
+        """Load Tongyi-MAI/Z-Image-Turbo model."""
+        from diffsynth.pipelines.z_image import ZImagePipeline, ModelConfig
+        config = get_model_config(pipeline_type, model_id)
+
+        self.download_models(config, model_id)
+
+        vram = {}
+        if offload_model:
+            vram = {
+    "offload_dtype": torch.float8_e4m3fn,
+    "offload_device": "cpu",
+    "onload_dtype": torch.float8_e4m3fn,
+    "onload_device": "cpu",
+    "preparing_dtype": torch.float8_e4m3fn,
+    "preparing_device": "cuda",
+    "computation_dtype": torch.bfloat16,
+    "computation_device": "cuda",
+}
+
+        return ZImagePipeline.from_pretrained(
+            torch_dtype=torch.bfloat16,
+            device=self.device,
+            model_configs=[
+                ModelConfig(
+                    model_id=model_id,
+                    origin_file_pattern="transformer/*.safetensors",
+                    skip_download=True,
+                    local_model_path=self.model_path,
+                    **vram
+                ),
+                ModelConfig(
+                    model_id=config.text_encoder if config.text_encoder else model_id,
+                    origin_file_pattern="text_encoder/*.safetensors",
+                    skip_download=True,
+                    local_model_path=self.model_path,
+                    **vram
+                ),
+                ModelConfig(
+                    model_id=config.vae_encoder if config.vae_encoder else model_id,
+                    origin_file_pattern="vae/diffusion_pytorch_model.safetensors",
+                    skip_download=True,
+                    local_model_path=self.model_path,
+                    **vram
+                ),
+            ],
+            tokenizer_config=ModelConfig(
+                model_id=config.tokenizer if config.tokenizer else model_id,
+                origin_file_pattern="tokenizer/",
+                skip_download=True,
+                local_model_path=self.model_path,
+                **vram
+            ),
+        )
+
+    def _load_flux2_image(self,pipeline_type: str,
+                            model_id: str,
+                            offload_model: bool):
+        """Load Flux model."""
+        from diffsynth.pipelines.flux2_image import Flux2ImagePipeline, ModelConfig
+        config = get_model_config(pipeline_type, model_id)
+
+        self.download_models(config, model_id)
+
+        vram = {}
+        if offload_model:
+            vram = {
+    "offload_dtype": "disk",
+    "offload_device": "disk",
+    "onload_dtype": torch.float8_e4m3fn,
+    "onload_device": "cpu",
+    "preparing_dtype": torch.float8_e4m3fn,
+    "preparing_device": "cuda",
+    "computation_dtype": torch.bfloat16,
+    "computation_device": "cuda",
+}
+
+        return Flux2ImagePipeline.from_pretrained(
+            torch_dtype=torch.bfloat16,
+            device=self.device,
+            model_configs=[
+                ModelConfig(
+                    model_id=model_id,
+                    origin_file_pattern="transformer/diffusion_pytorch_model*.safetensors",
+                    skip_download=True,
+                    local_model_path=self.model_path,
+                    **vram
+                ),
+                ModelConfig(
+                    model_id=config.text_encoder if config.text_encoder else model_id,
+                    origin_file_pattern="text_encoder/model*.safetensors",
+                    skip_download=True,
+                    local_model_path=self.model_path,
+                    **vram
+                ),
+                ModelConfig(
+                    model_id=config.vae_encoder if config.vae_encoder else model_id,
+                    origin_file_pattern="vae/diffusion_pytorch_model.safetensors",
+                    skip_download=True,
+                    local_model_path=self.model_path,
+                    **vram
+                ),
+            ],
+            tokenizer_config=ModelConfig(
+                model_id=config.tokenizer if config.tokenizer else model_id,
+                origin_file_pattern="tokenizer/",
+                skip_download=True,
+                local_model_path=self.model_path,
+            ),
+        )
+
+    def load_lora_model(self, lora_model: str):
+        """Load LoRA model into the pipeline."""
+        from diffsynth.pipelines.z_image import ModelConfig
+        if lora_model:
+            lora_config = ModelConfig(model_id=lora_model,
+                                      origin_file_pattern="*",
+                                      skip_download=True,
+                                      local_model_path=self.model_path)
+            if not os.path.exists(os.path.join(self.model_path, lora_model)):
+                snapshot_download(lora_model, local_dir=self.model_path,
+                                  allow_file_pattern="*")
+
+            self.pipe.load_lora(self.pipe.dit, lora_config=lora_config)
+            logger.info(f"LoRA模型加载完成: {lora_model}")
+
+
+    def download_models(self, config: ModelConfig, model_id: str):
+        model_path = os.path.join(self.model_path, model_id)
+        if not os.path.exists(model_path):
+            snapshot_download(model_id, local_dir=model_path, allow_file_pattern="*")
+
+        if config.text_encoder:
+            text_encoder_model_path = os.path.join(self.model_path, config.text_encoder)
+            if not os.path.exists(text_encoder_model_path):
+                snapshot_download(config.text_encoder, local_dir=text_encoder_model_path, allow_file_pattern="*")
+
+        if config.vae_encoder:
+            vae_encoder_model_path = os.path.join(self.model_path, config.vae_encoder)
+            if not os.path.exists(vae_encoder_model_path):
+                snapshot_download(config.vae_encoder, local_dir=vae_encoder_model_path, allow_file_pattern="*")
+
+        if config.tokenizer:
+            tokenizer_path = os.path.join(self.model_path, config.tokenizer)
+            if not os.path.exists(tokenizer_path):
+                snapshot_download(config.tokenizer, local_dir=tokenizer_path, allow_file_pattern="*")
     
     def generate(
         self,
         positive_magic:str,
         prompt: str,
+        edit_image_path: str = "",
         negative_prompt: str = "",
         height: int = 512,
         width: int = 512,
@@ -242,17 +346,44 @@ class TextToImageGenerator:
         
         try:
             logger.info(f"开始生成图像，提示词: {prompt[:50]}...")
-            
-            # 生成图像
-            image = self.pipe(
-                prompt=positive_magic+prompt,
-                negative_prompt=negative_prompt,
-                height=height,
-                width=width,
-                num_inference_steps=num_inference_steps,
-                cfg_scale=guidance_scale,
-                seed=seed
-            )
+
+            if edit_image_path:
+                logger.info(f"使用输入图像进行编辑: {edit_image_path}")
+                # 编辑图像
+                if self.current_model_id == "Qwen/Qwen-Image-Edit-2511":
+                    image = self.pipe(
+                        prompt=positive_magic + prompt,
+                        # negative_prompt=negative_prompt,
+                        edit_image=[Image.open(edit_image_path)],
+                        height=height,
+                        width=width,
+                        num_inference_steps=num_inference_steps,
+                        cfg_scale=guidance_scale,
+                        seed=seed,
+                        edit_image_auto_resize=True,
+                        zero_cond_t=True)
+                else:
+                    image = self.pipe(
+                        prompt=positive_magic+prompt,
+                        # negative_prompt=negative_prompt,
+                        edit_image=[Image.open(edit_image_path)],
+                        height=height,
+                        width=width,
+                        num_inference_steps=num_inference_steps,
+                        cfg_scale=guidance_scale,
+                        seed=seed,
+                        edit_image_auto_resize=True)
+            else:
+                # 生成图像
+                image = self.pipe(
+                    prompt=positive_magic+prompt,
+                    negative_prompt=negative_prompt,
+                    height=height,
+                    width=width,
+                    num_inference_steps=num_inference_steps,
+                    cfg_scale=guidance_scale,
+                    seed=seed
+                )
 
 
             # 保存图像
@@ -263,7 +394,7 @@ class TextToImageGenerator:
                 output_dir = Path(output_path).joinpath(Path("outputs/text_to_image"))
                 output_dir.mkdir(parents=True, exist_ok=True)
                 import uuid
-                output_path = str(output_dir / f"{uuid.uuid4()}.jpg")
+                output_path = str(output_dir / f"{uuid.uuid4()}.png")
             image.save(output_path)
             logger.info(f"图像已保存至: {output_path}")
 
@@ -352,8 +483,8 @@ def get_generator() -> TextToImageGenerator:
     """获取或创建文生图生成器实例"""
     global _generator
     if _generator is None:
-        from gradio_app import diffsynth_model_dir
-        _generator = TextToImageGenerator(diffsynth_model_dir)
+        from gradio_app import get_diffsynth_model_dir
+        _generator = TextToImageGenerator(get_diffsynth_model_dir())
     return _generator
 
 
@@ -361,7 +492,7 @@ def generate_image(
     positive_magic:str,
     prompt: str,
     negative_prompt: str = "",
-    model_type: str = "MusePublic/Qwen-image",
+    model_id: str = "MusePublic/Qwen-image",
     lora_model:str=None,
     offload_model:bool=False,
     device: str = "cuda",
@@ -391,7 +522,7 @@ def generate_image(
         生成的图像路径
     """
     generator = get_generator()
-    
+
     # 更新设备设置
     generator.device = get_gpu_devices()
     # 如果有已加载的模型，需要卸载重新加载
@@ -399,16 +530,19 @@ def generate_image(
         generator.unload_model()
 
     # 如果需要切换模型类型，先卸载旧模型
-    if generator.current_model_type is not None and generator.current_model_type != model_type:
-        logger.info(f"切换模型: {generator.current_model_type} -> {model_type}")
+    if generator.current_model_id is not None and generator.current_model_id != model_id:
+        logger.info(f"切换模型: {generator.current_model_id} -> {model_id}")
         generator.unload_model()
 
     # 如果模型未加载，加载新模型
     if generator.pipe is None:
-        generator.load_model(model_type, lora_model=lora_model, low_varam=offload_model)
+        generator.load_model(model_id=model_id, lora_model=lora_model, low_varam=offload_model)
     # 如果模型已加载但需要添加/更换LoRA
     elif lora_model and not generator.lora_loaded:
-        generator.load_model(model_type, lora_model=lora_model, low_varam=offload_model)
+        generator.lora_loaded = False
+        generator.unload_lora()
+        generator.load_lora_model(lora_model)
+        generator.lora_loaded = True
 
     return generator.generate(
         positive_magic=positive_magic,
@@ -426,7 +560,7 @@ def edit_image(
     input_image_path: str,
     prompt: str,
     negative_prompt: str = "",
-    model_type: str = "Qwen-Image-Edit-2509",
+    model_id: str = "Qwen-Image-Edit-2511",
     lora_model: str = None,
     offload_model: bool = False,
     height: int = 1024,
@@ -456,7 +590,6 @@ def edit_image(
     返回:
         编辑后的图像路径
     """
-    from PIL import Image
 
     generator = get_generator()
 
@@ -467,53 +600,34 @@ def edit_image(
         generator.unload_model()
 
     # 如果需要切换模型类型，先卸载旧模型
-    if generator.current_model_type is not None and generator.current_model_type != model_type:
-        logger.info(f"切换模型: {generator.current_model_type} -> {model_type}")
+    if generator.current_model_id is not None and generator.current_model_id != model_id:
+        logger.info(f"切换模型: {generator.current_model_id} -> {model_id}")
         generator.unload_model()
 
     # 如果模型未加载，加载新模型
     if generator.pipe is None:
-        generator.load_model(model_type, lora_model=lora_model, low_varam=offload_model)
+        generator.load_model(PipelineType.IMAGE_EDIT,model_id, lora_model=lora_model, low_varam=offload_model)
     # 如果模型已加载但需要添加/更换LoRA
     elif lora_model and not generator.lora_loaded:
-        generator.load_model(model_type, lora_model=lora_model, low_varam=offload_model)
-
-    # 加载输入图像
-    input_image = Image.open(input_image_path).convert("RGB")
-
-    # 调整图像尺寸
-    if input_image.size != (width, height):
-        input_image = input_image.resize((width, height), Image.LANCZOS)
+        generator.load_model(PipelineType.IMAGE_EDIT,model_id, lora_model=lora_model, low_varam=offload_model)
 
     # 使用模型编辑图像
     try:
         logger.info(f"开始编辑图像，提示词: {prompt[:50]}...")
 
         # 生成图像
-        edited_image = generator.pipe(
+        return generator.generate(
+            positive_magic="",
             prompt=prompt,
             negative_prompt=negative_prompt,
-            input_image=input_image,
+            edit_image_path=input_image_path,
             height=height,
             width=width,
             num_inference_steps=num_inference_steps,
-            cfg_scale=guidance_scale,
-            seed=seed
+            guidance_scale=guidance_scale,
+            seed=seed,
+            output_path=output_path,
         )
-
-        # 保存图像
-        if output_path is None:
-            output_dir = Path("outputs/image_edit")
-            output_dir.mkdir(parents=True, exist_ok=True)
-            import uuid
-            output_path = str(output_dir / f"{uuid.uuid4()}.jpg")
-        else:
-            os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
-        edited_image.save(output_path)
-        logger.info(f"编辑后图像已保存至: {output_path}")
-
-        return output_path
 
     except Exception as e:
         logger.error(f"编辑图像失败: {e}")
@@ -537,5 +651,3 @@ def get_model_status():
     is_loaded = generator.pipe is not None
     lora_loaded = generator.lora_loaded if is_loaded else False
     return is_loaded, lora_loaded
-
-

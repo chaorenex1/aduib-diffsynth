@@ -1,0 +1,244 @@
+# Text-to-Image Model Configuration
+# This file defines available models for text-to-image generation
+
+categories:
+  text_to_image:
+    description: "Text-to-Image generation models"
+    models:
+      - id: "Tongyi-MAI/Z-Image"
+        name: "Z-Image"
+        description: "图像生成模型，适合高质量图像生成"
+        pipeline: "Z-Image"
+        d_type: "bfloat16"
+        text_encoder: "Tongyi-MAI/Z-Image-Turbo"
+        vae_encoder: "Tongyi-MAI/Z-Image-Turbo"
+        tokenizer: "Tongyi-MAI/Z-Image-Turbo"
+        provider: "Tongyi-MAI"
+        default_resolution: [ 1024, 1024 ]
+        default_steps: 40
+        default_guidance: 4.0
+        supports_lora: true
+        supports_offload: true
+        tags: [ "quality", "standard", "1:1" ]
+
+      - id: "Tongyi-MAI/Z-Image-Turbo"
+        name: "Z-Image-Turbo"
+        description: "快速图像生成模型，适合快速预览"
+        pipeline: "Z-Image"
+        d_type: "bfloat16"
+        provider: "Tongyi-MAI"
+        default_resolution: [1024, 1024]
+        default_steps: 40
+        default_guidance: 4.0
+        supports_lora: true
+        supports_offload: true
+        tags: ["fast", "turbo", "1:1"]
+
+      - id: "Qwen/Qwen-Image-2512"
+        name: "Qwen-Image"
+        description: "通义千问图像生成模型"
+        pipeline: "Qwen-Image"
+        d_type: "bfloat16"
+        text_encoder: "Qwen/Qwen-Image"
+        vae_encoder: "Qwen/Qwen-Image"
+        tokenizer: "Qwen/Qwen-Image"
+        provider: "Qwen"
+        default_resolution: [1024, 1024]
+        default_steps: 50
+        default_guidance: 7.5
+        supports_lora: true
+        supports_offload: false
+        tags: ["quality", "standard"]
+
+      - id: "MusePublic/Qwen-image"
+        name: "Qwen-Image (MusePublic)"
+        description: "MusePublic 版本的 Qwen 图像生成模型"
+        pipeline: "Qwen-Image"
+        d_type: "bfloat16"
+        text_encoder: "Qwen/Qwen-Image"
+        vae_encoder: "Qwen/Qwen-Image"
+        tokenizer: "Qwen/Qwen-Image"
+        provider: "MusePublic"
+        default_resolution: [1024, 1024]
+        default_steps: 50
+        default_guidance: 7.5
+        supports_lora: true
+        supports_offload: false
+        tags: ["standard"]
+
+      - id: "MusePublic/Qwen-image-fp8"
+        name: "Qwen Image FP8"
+        description: "FP8 量化版本，显存占用更低"
+        pipeline: "Qwen-Image"
+        d_type: "float8"
+        text_encoder: "Qwen/Qwen-Image"
+        vae_encoder: "Qwen/Qwen-Image"
+        tokenizer: "Qwen/Qwen-Image"
+        provider: "Qwen"
+        default_resolution: [1024, 1024]
+        default_steps: 50
+        default_guidance: 7.5
+        supports_lora: true
+        supports_offload: true
+        tags: ["fp8", "low-vram", "optimized"]
+
+      - id: "black-forest-labs/FLUX.2-klein-9B"
+        name: "FLUX.2-klein-9B"
+        description: "FLUX.2-klein-9B 图像生成模型"
+        pipeline: "FLUX2"
+        d_type: "bfloat16"
+        provider: "Black Forest Labs"
+        default_resolution: [1024, 1024]
+        default_steps: 40
+        default_guidance: 7.0
+        supports_lora: true
+        supports_offload: true
+        tags: ["quality", "standard"]
+
+  image_edit:
+    description: "Image editing models"
+    models:
+      - id: "Qwen/Qwen-Image-Edit-2511"
+        name: "Qwen-Image-Edit-2511"
+        description: "专业图像编辑模型"
+        pipeline: "Qwen-Image"
+        d_type: "bfloat16"
+        text_encoder: "Qwen/Qwen-Image"
+        vae_encoder: "Qwen/Qwen-Image"
+        tokenizer: "Qwen/Qwen-Image-Edit"
+        provider: "Qwen"
+        default_resolution: [1024, 1024]
+        default_steps: 50
+        default_guidance: 4.5
+        supports_lora: true
+        supports_offload: false
+        tags: ["editing", "professional"]
+        requires_input: true
+
+      - id: "black-forest-labs/FLUX.2-klein-9B"
+        name: "FLUX.2-klein-9B"
+        description: "FLUX.2-klein-9B 图像编辑模型"
+        pipeline: "FLUX2"
+        d_type: "bfloat16"
+        text_encoder: "black-forest-labs/FLUX.2-klein-9B"
+        vae_encoder: "black-forest-labs/FLUX.2-klein-4B"
+        tokenizer: "black-forest-labs/FLUX.2-klein-4B"
+        provider: "Black Forest Labs"
+        default_resolution: [ 1024, 1024 ]
+        default_steps: 40
+        default_guidance: 7.0
+        supports_lora: true
+        supports_offload: true
+        tags: ["editing", "professional"]
+        requires_input: true
+
+  lora:
+    description: "LoRA adapters for style transfer"
+    models:
+      - id: "none"
+        name: "不使用 LoRA"
+        description: "不加载任何 LoRA 模型"
+        provider: "N/A"
+        tags: ["none"]
+
+      - id: "animationtj/Qwen_image_nude_pantyhose_lora"
+        name: "肉色连裤袜 LoRA"
+        description: "特定风格 LoRA"
+        provider: "animationtj"
+        tags: ["style", "character"]
+
+      - id: "merjic/majicbeauty-qwen1"
+        name: "麦橘千问美人 LoRA"
+        description: "美化人物面部特征"
+        provider: "merjic"
+        tags: ["beauty", "portrait", "face"]
+
+      - id: "DiffSynth-Studio/Qwen-Image-LoRA-ArtAug-v1"
+        name: "美学提升 LoRA"
+        description: "提升图像整体美学质量"
+        provider: "DiffSynth-Studio"
+        tags: ["art", "aesthetic", "quality"]
+
+      - id: "DiffSynth-Studio/Qwen-Image-LangAlign-LoRA"
+        name: "多语言对齐 LoRA"
+        description: "优化多语言提示词理解"
+        provider: "DiffSynth-Studio"
+        tags: ["multilingual", "text"]
+
+  ocr:
+    description: "OCR models"
+    models:
+      - id: "paddleocr"
+        name: "PaddleOCR"
+        description: "PaddleOCR Python SDK"
+        provider: "PaddlePaddle"
+        tags: ["ocr"]
+
+      - id: "surya"
+        name: "Surya"
+        description: "Surya OCR (if installed)"
+        provider: "Surya"
+        tags: ["ocr"]
+
+      - id: "paddleocr-cli"
+        name: "paddleocr-cli"
+        description: "PaddleOCR command line (if installed)"
+        provider: "PaddlePaddle"
+        tags: ["ocr", "cli"]
+
+  asr:
+    description: "ASR models"
+    models:
+      - id: "whisper"
+        name: "Whisper"
+        description: "OpenAI Whisper (if installed)"
+        provider: "OpenAI"
+        tags: ["asr"]
+
+      - id: "sensevoice"
+        name: "SenseVoice"
+        description: "SenseVoice via FunASR (if installed)"
+        provider: "FunASR"
+        tags: ["asr"]
+
+      - id: "paraformer"
+        name: "Paraformer"
+        description: "Paraformer via FunASR (if installed)"
+        provider: "FunASR"
+        tags: ["asr"]
+
+  tts:
+    description: "TTS models"
+    models:
+      - id: "chattts"
+        name: "ChatTTS"
+        description: "ChatTTS (if installed)"
+        provider: "ChatTTS"
+        tags: ["tts"]
+
+      - id: "cosyvoice"
+        name: "CosyVoice"
+        description: "CosyVoice client (if installed)"
+        provider: "CosyVoice"
+        tags: ["tts"]
+
+      - id: "fishspeech"
+        name: "FishSpeech"
+        description: "FishSpeech (if installed)"
+        provider: "FishSpeech"
+        tags: ["tts"]
+
+      - id: "edge-tts"
+        name: "edge-tts"
+        description: "Microsoft Edge TTS (if installed)"
+        provider: "Microsoft"
+        tags: ["tts", "online"]
+
+# 默认模型配置
+defaults:
+  text_to_image: "Z-Image-Turbo"
+  image_edit: "Qwen-Image-Edit-2511"
+  lora: "none"
+  ocr: "paddleocr"
+  asr: "whisper"
+  tts: "edge-tts"
