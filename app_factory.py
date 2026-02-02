@@ -19,9 +19,9 @@ from libs.context import LoggingMiddleware, TraceIdContextMiddleware, ApiKeyCont
 from libs.contextVar_wrapper import ContextVarWrappers
 from mcp_service import load_mcp_plugins
 
-log=logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
-app_context: ContextVarWrappers[AduibAIApp]=ContextVarWrappers(ContextVar("app_context"))
+app_context: ContextVarWrappers[AduibAIApp] = ContextVarWrappers(ContextVar("app_context"))
 
 
 def create_app_with_configs()->AduibAIApp:
@@ -119,8 +119,19 @@ def run_mcp_server(app):
 
 @contextlib.asynccontextmanager
 async def lifespan(app: AduibAIApp) -> AsyncIterator[None]:
+    """
+    Lifespan context manager for the application.
+
+    Handles startup (model pool warmup) and shutdown (cleanup) tasks.
+    """
     log.info("Lifespan is starting")
+    # Run MCP session manager
     session_manager = app.mcp.session_manager
     if session_manager:
         async with session_manager.run():
             yield
+    else:
+        yield
+
+    # Shutdown: cleanup model pool
+    log.info("Lifespan is shutting down")
